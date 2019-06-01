@@ -16,7 +16,8 @@ Based on those questions I create JdbcTemplateTool which can provide these featu
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <springVersion>3.2.15</springVersion>
+    <!-- <springVersion>3.2.15</springVersion> -->
+    <springVersion>3.2.15.RELEASE</springVersion>
   </properties>
 
 	<licenses>
@@ -125,9 +126,9 @@ Based on those questions I create JdbcTemplateTool which can provide these featu
 			<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
 		</repository>
 	</distributionManagement>
-	
+
   <build>
-    <finalName>jdbctemplatetool</finalName>
+    <finalName>jdbctemplatetool-1.0.4-RELEASE</finalName>
     <plugins>
        <plugin>
            <groupId>org.apache.maven.plugins</groupId>
@@ -140,14 +141,14 @@ Based on those questions I create JdbcTemplateTool which can provide these featu
        </plugin>
     </plugins>
   </build>
-  
+ 
   <profiles>
 		<profile>
 			<id>release-sign-artifacts</id>
 			<activation>
 				<property>
 					<name>performRelease</name>
-					<value>true</value>
+					<value>false</value>
 				</property>
 			</activation>
 

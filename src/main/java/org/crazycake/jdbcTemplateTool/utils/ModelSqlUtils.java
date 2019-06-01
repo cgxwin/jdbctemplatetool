@@ -4,6 +4,7 @@ package org.crazycake.jdbcTemplateTool.utils;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.persistence.Column;
 import javax.persistence.Id;
@@ -142,7 +143,6 @@ public class ModelSqlUtils {
 		return IdUtils.toUnderscore(className.substring(className.lastIndexOf(".")+1));
 	}
 	
-	
 	/**
 	 * 从对象中获取update语句
 	 * @param po
@@ -170,63 +170,81 @@ public class ModelSqlUtils {
 		
 		//分析列
 		Field[] fields = po.getClass().getDeclaredFields();
-		
-		//用于计数
-		int count = 0;
-		for (int i = 0; i < fields.length; i++) {
-			Field f = fields[i];
-			
-			//获取具体参数值
-			Method getter = getGetter(po.getClass(),f);
-			
-			if(getter == null){
-				continue;
+		Method dirtySet = po.getClass().getMethod("getDirtyMap");
+		if(dirtySet!=null) {
+			Object dv = dirtySet.invoke(po);
+			if(dv!=null) {
+				Map<String, Boolean> dmap = (Map<String, Boolean>)dv;
+				//用于计数
+				if(dmap!=null) {
+					int count = 0;
+					for (int i = 0; i < fields.length; i++) {
+						Field f = fields[i];
+						
+						if(f==null) {
+							continue;
+						}
+						
+						//获取具体参数值
+						Method getter = getGetter(po.getClass(),f);
+						
+						if(getter == null){
+							continue;
+						}
+						
+						Object value = getter.invoke(po);
+						if(value == null){
+							//如果参数值是null就直接跳过（不允许覆盖为null值，规范要求更新的每个字段都要有值，没有值就是空字符串）
+							continue;
+						}
+						
+						Transient tranAnno = getter.getAnnotation(Transient.class);
+						if(tranAnno != null){
+							//如果有 Transient 标记直接跳过
+							continue;
+						}
+						
+						//获取字段名
+						String columnName = getColumnNameFromGetter(getter,f);
+						
+						//看看是不是主键
+						Id idAnno = getter.getAnnotation(Id.class);
+						if(idAnno != null){
+							//如果是主键
+							whereSql.append(columnName + " = ?");
+							idValue = value;
+							continue;
+						}
+						
+						Boolean dirty = dmap.get(f.getName());
+						
+						if(dirty==null || dirty==false) {
+							continue;
+						}
+						
+						//如果是普通列
+						params.add(value);
+						
+						if(count!=0){
+							updateSql.append(",");
+						}
+						updateSql.append(" " + columnName + " = ?");
+						count++;
+						dmap.put(f.getName(), false);
+					}
+				}
+				
+				updateSql.append(" where ");
+				updateSql.append(whereSql);
+				params.add(idValue);
+				
+				SqlParamsPairs sqlAndParams = new SqlParamsPairs(updateSql.toString(),params.toArray());
+				logger.debug(sqlAndParams.toString());
+				
+				return sqlAndParams;
 			}
-			
-			Object value = getter.invoke(po);
-			if(value == null){
-				//如果参数值是null就直接跳过（不允许覆盖为null值，规范要求更新的每个字段都要有值，没有值就是空字符串）
-				continue;
-			}
-			
-			Transient tranAnno = getter.getAnnotation(Transient.class);
-			if(tranAnno != null){
-				//如果有 Transient 标记直接跳过
-				continue;
-			}
-			
-			//获取字段名
-			String columnName = getColumnNameFromGetter(getter,f);
-			
-			//看看是不是主键
-			Id idAnno = getter.getAnnotation(Id.class);
-			if(idAnno != null){
-				//如果是主键
-				whereSql.append(columnName + " = ?");
-				idValue = value;
-				continue;
-			}
-			
-			//如果是普通列
-			params.add(value);
-			
-			if(count!=0){
-				updateSql.append(",");
-			}
-			updateSql.append(" " + columnName + " = ?");
-			
-			count++;
 		}
-		
-		updateSql.append(" where ");
-		updateSql.append(whereSql);
-		params.add(idValue);
-		
-		SqlParamsPairs sqlAndParams = new SqlParamsPairs(updateSql.toString(),params.toArray());
-		logger.debug(sqlAndParams.toString());
-		
-		return sqlAndParams;
-		
+		return new SqlParamsPairs();
 	}
 	
 	/**
